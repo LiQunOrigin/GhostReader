@@ -662,11 +662,13 @@ class MainWindow(QWidget):
                 self.reader.apply_settings()
                 self.update()
         elif key in ("win_w", "win_h"):
-            # 不允许超出屏幕，否则窗口会跑到看不见的地方
             avail = QGuiApplication.primaryScreen().availableGeometry()
-            ww = min(self.panel.win_w.value(), avail.width())
-            hh = min(self.panel.win_h.value(), avail.height())
-            self.resize(ww, hh)
+            self.resize(self.panel.win_w.value(), self.panel.win_h.value())
+            # 变宽后右边缘可能顶出屏幕，把窗口拉回来
+            x = max(avail.left(), min(self.x(), avail.right() - self.width()))
+            y = max(avail.top(), min(self.y(), avail.bottom() - self.height()))
+            if (x, y) != (self.x(), self.y()):
+                self.move(x, y)
             self._layout_panels()
         elif key in ("text_alpha", "ghost_text"):
             # 只重排正文，不用重建整个面板
@@ -857,10 +859,13 @@ class MainWindow(QWidget):
     def resizeEvent(self, e):
         super().resizeEvent(e)
         self._layout_panels()
-        # 拖动窗口边缘后把尺寸回写到设置面板（set_value 内部已屏蔽信号，不会死循环）
+        # 拖动窗口边缘后把尺寸回写到设置面板。
+        # 正在拖滑块时不要回写，否则会把滑块拽回去、拖动被打断。
         if hasattr(self.panel, "win_w"):
-            self.panel.win_w.set_value(self.width())
-            self.panel.win_h.set_value(self.height())
+            if not self.panel.win_w.slider.isSliderDown():
+                self.panel.win_w.set_value(self.width())
+            if not self.panel.win_h.slider.isSliderDown():
+                self.panel.win_h.set_value(self.height())
             self.s.win_w, self.s.win_h = self.width(), self.height()
 
     def mousePressEvent(self, e):

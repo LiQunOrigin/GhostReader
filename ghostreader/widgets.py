@@ -856,11 +856,15 @@ class SettingsPanel(QWidget):
         self.padding.valueChanged.connect(lambda v: self._emit("padding"))
         self.body.addWidget(self.padding)
 
-        self.win_w = SliderRow("窗口宽度", 380, 1600, s.win_w, " px")
+        # 上限取屏幕可用尺寸：超过屏幕没有意义，还会让窗口跑到看不见的地方
+        avail = QGuiApplication.primaryScreen().availableGeometry()
+        max_w = max(420, avail.width())
+        max_h = max(340, avail.height())
+        self.win_w = SliderRow("窗口宽度", 380, max_w, min(s.win_w, max_w), " px")
         self.win_w.valueChanged.connect(lambda v: self._emit("win_w"))
         self.body.addWidget(self.win_w)
 
-        self.win_h = SliderRow("窗口高度", 300, 1400, s.win_h, " px")
+        self.win_h = SliderRow("窗口高度", 300, max_h, min(s.win_h, max_h), " px")
         self.win_h.valueChanged.connect(lambda v: self._emit("win_h"))
         self.body.addWidget(self.win_h)
 
