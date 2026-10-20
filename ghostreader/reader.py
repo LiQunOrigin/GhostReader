@@ -69,6 +69,8 @@ class ReaderView(QTextBrowser):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.viewport().setAutoFillBackground(False)
         self.setStyleSheet("QTextBrowser#ReaderView{background:transparent;border:none;}")
+        # 视口 palette 的 Base 默认是不透明黑，会让正文区出现一块底色
+        self._apply_viewport_backing()
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setViewportMargins(0, 6, 0, 6)
         self.anchorClicked.connect(self._on_anchor)
@@ -161,6 +163,8 @@ class ReaderView(QTextBrowser):
         self._fit_images()
         self._restyle_scrollbar()
         self._restyle_selection()
+        # setHtml 会把视口 palette 重置回不透明 Base，这里再压一次
+        self._apply_viewport_backing()
         # 翻页模式不需要滚动条，留着反而会占宽度、挡住右边一列字
         if self.s.page_mode == "page":
             self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -168,14 +172,27 @@ class ReaderView(QTextBrowser):
             self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
     def _apply_viewport_backing(self) -> None:
-        """刷新幽灵模式的文字底衬。
+        """确保正文视口本身是透明的。
 
-        文字直接画在透明表面上时，抗锯齿只能拿白色当过渡色，在深色桌面上
-        会形成一圈白边（看起来像描边）。垫一层底色能解决，但矩形底色本身
-        会露出生硬的边（像多了一个框），所以这里改成径向渐变、四周淡出。
+        QTextEdit 内部会用 palette 的 Base 填充视口背景，默认是不透明黑，
+        在幽灵模式下就成了一块深色圆角矩形（看起来像多了一个框）。
+        这里把 Base / Window 都设成全透明，背景只由 paintEvent 的底衬负责。
         """
-        self.viewport().setAutoFillBackground(False)
-        self.viewport().update()
+        vp = self.viewport()
+        pal = vp.palette()
+        if self.ghost_mode:
+            # 幽灵模式：视口本身全透明，底色由 paintEvent 的羽化底衬负责
+            clear = QColor(0, 0, 0, 0)
+            pal.setColor(QPalette.ColorRole.Base, clear)
+            pal.setColor(QPalette.ColorRole.Window, clear)
+            vp.setAutoFillBackground(False)
+        else:
+            # 普通模式：用纸色作视口底，给字形抗锯齿一个正确参照色
+            pal.setColor(QPalette.ColorRole.Base, QColor(self.s.bg_color))
+            pal.setColor(QPalette.ColorRole.Window, QColor(self.s.bg_color))
+            vp.setAutoFillBackground(True)
+        vp.setPalette(pal)
+        vp.update()
 
     def paintEvent(self, event):
         # 先在视口上铺一层中心实、四周淡的纸色，再交给 QTextBrowser 画正文。
