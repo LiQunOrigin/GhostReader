@@ -57,6 +57,14 @@ def main() -> int:
     out.mkdir(exist_ok=True)
     pm = render(1024)
     pm.save(str(out / "icon_1024.png"))
+    # Windows 打包需要 .ico
+    try:
+        ico = render(256)
+        ico.save(str(out / "icon.ico"), "ICO")
+        print(out / "icon.ico")
+    except Exception as exc:
+        print("生成 .ico 失败：", exc)
+
     for s in (512, 256, 128, 64, 32, 16):
         pm.scaled(s, s, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation).save(
             str(out / f"icon_{s}.png")

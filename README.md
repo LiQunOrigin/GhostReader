@@ -214,6 +214,21 @@
 
 首次使用全局热键，需要在 **系统设置 → 隐私与安全性 → 辅助功能** 里勾选 GhostReader。没授权也能用，只是 `⌘⇧H` 仅在窗口聚焦时生效，隐藏后点菜单栏托盘图标恢复。
 
+### 装成 Windows 程序
+
+```bat
+build_windows.bat
+```
+
+生成 `dist\GhostReader\GhostReader.exe`（整个 `dist\GhostReader` 目录可直接拷走）。开发调试用 `run.bat`。
+
+Windows 上的差异：
+
+- 全局热键用 `Ctrl+Shift+H / G / J / T`，**不需要**任何授权
+- 防录屏走 `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`，需 Windows 10 2004 及以上
+- 配置在 `%APPDATA%\GhostReader\settings.json`，日志在 `%LOCALAPPDATA%\GhostReader\Logs\`
+- 窗口半透明、无边框、置顶、托盘均由 Qt 跨平台实现；未在 Windows 真机上实测，如有异常请提 issue
+
 ### 开发模式运行
 
 ```bash

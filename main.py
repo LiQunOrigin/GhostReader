@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 import traceback
@@ -38,7 +39,12 @@ def setup_logging() -> None:
     if not getattr(sys, "frozen", False):
         return
     try:
-        log_dir = Path.home() / "Library" / "Logs"
+        if sys.platform == "darwin":
+            log_dir = Path.home() / "Library" / "Logs"
+        elif os.name == "nt":
+            log_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "GhostReader" / "Logs"
+        else:
+            log_dir = Path.home() / ".local" / "share" / "GhostReader" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         stream = open(log_dir / "GhostReader.log", "a", buffering=1, encoding="utf-8")
         sys.stdout = stream
@@ -64,7 +70,12 @@ def setup_logging() -> None:
     if not getattr(sys, "frozen", False):
         return
     try:
-        log_dir = Path.home() / "Library" / "Logs"
+        if sys.platform == "darwin":
+            log_dir = Path.home() / "Library" / "Logs"
+        elif os.name == "nt":
+            log_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "GhostReader" / "Logs"
+        else:
+            log_dir = Path.home() / ".local" / "share" / "GhostReader" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         stream = open(log_dir / "GhostReader.log", "a", buffering=1, encoding="utf-8")
         sys.stdout = stream
