@@ -52,6 +52,7 @@ from .stealth import (
     set_click_through,
 )
 from .widgets import (
+    DragHandle,
     IconButton,
     Palette,
     SettingsPanel,
@@ -205,6 +206,7 @@ class MainWindow(QWidget):
         self._ensure_font_available()
         self._build_ui()
         self._build_ghost_buttons()
+        self._build_drag_handle()
         self._build_shortcuts()
         self._build_tray()
         self._restore_geometry()
@@ -234,6 +236,10 @@ class MainWindow(QWidget):
             if name in families:
                 self.s.font_family = name
                 return
+
+    def _build_drag_handle(self):
+        self._g_move = DragHandle(self.pal, self)
+        self._g_move.hide()
 
     def _build_ghost_buttons(self):
         """幽灵模式下标题栏隐藏，这两个按钮浮在正文之上。"""
@@ -420,7 +426,12 @@ class MainWindow(QWidget):
         path.addRoundedRect(outer, RADIUS, RADIUS)
 
         if self._ghost:
-            # 幽灵模式：窗口层不画任何东西，文字底衬由 reader 的视口负责
+            # 幽灵模式：把窗口自身的绘制层彻底清成透明，
+            # 避免上一帧或系统层的残留形成一圈边线。
+            # 父控件的 paintEvent 先于子控件执行，所以不会影响正文。
+            p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+            p.fillRect(self.rect(), Qt.GlobalColor.transparent)
+            p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
             p.end()
             return
 
@@ -489,12 +500,14 @@ class MainWindow(QWidget):
             return
         for btn in (self._g_toc, self._g_exit):
             btn.setVisible(self._ghost)
+        self._g_move.setVisible(self._ghost)
         if not self._ghost:
             return
         self._g_toc.move(10, 8)
         self._g_exit.move(self.width() - self._g_exit.width() - 10, 8)
-        self._g_toc.raise_()
-        self._g_exit.raise_()
+        self._g_move.move((self.width() - self._g_move.width()) // 2, 8)
+        for x in (self._g_toc, self._g_exit, self._g_move):
+            x.raise_()
 
     def _apply_window_flags(self):
         """只有置顶状态真的变化时才重建窗口。

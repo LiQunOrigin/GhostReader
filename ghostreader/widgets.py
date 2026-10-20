@@ -629,6 +629,42 @@ class _Chip(QWidget):
 # ------------------------------------------------------------------ 标题栏
 
 
+class DragHandle(QWidget):
+    """幽灵模式下的拖动把手：按住即可移动窗口（标题栏此时是隐藏的）。"""
+
+    def __init__(self, pal: Palette, parent=None):
+        super().__init__(parent)
+        self._pal = pal
+        self.setFixedSize(44, 26)
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.setToolTip("按住拖动窗口")
+
+    def apply_palette(self, pal: Palette):
+        self._pal = pal
+        self.update()
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            handle = self.window().windowHandle()
+            if handle is not None:
+                handle.startSystemMove()
+            e.accept()
+            return
+        super().mousePressEvent(e)
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        color = qca(self._pal.fg, 0.55 if self.underMouse() else 0.30)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(color)
+        cx, cy = self.width() / 2, self.height() / 2
+        for row in (-1, 1):
+            for col in (-1, 0, 1):
+                p.drawEllipse(QPointF(cx + col * 7, cy + row * 5), 1.5, 1.5)
+        p.end()
+
+
 class TitleBar(QWidget):
     tocClicked = pyqtSignal()
     openClicked = pyqtSignal()
