@@ -191,7 +191,7 @@ class ReaderView(QTextBrowser):
                 # 1) 铺满整块
                 p.fillRect(vp.rect(), QColor(c.red(), c.green(), c.blue(), a))
                 # 2) 四条边用 DestinationOut 擦成渐隐，避免出现生硬的矩形边
-                feather = min(120.0, min(w, h) * 0.16)
+                feather = min(220.0, min(w, h) * 0.30)
                 p.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut)
                 clear = QColor(0, 0, 0, 255)
                 keep = QColor(0, 0, 0, 0)
