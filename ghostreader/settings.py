@@ -42,6 +42,7 @@ class Settings:
     font_size: float = 17.0
     line_height: int = 185  # 百分比
     indent: bool = True     # 段首缩进两字
+    page_mode: str = "page"  # page = 整页翻页；scroll = 连续滚动
     text_color: str = "#33291C"
     text_alpha: float = 1.0     # 字体不透明度（1.0 = 完全不透明）
     theme_index: int = 0

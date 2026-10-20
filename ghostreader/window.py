@@ -191,6 +191,9 @@ class MainWindow(QWidget):
         self.pal = Palette(self.s)
         self._ghost = False
         self._mouse_inside = True   # 幽灵模式下由光标位置决定显示/隐没
+        self._resizing_edge = Qt.Edge(0)
+        self._resize_origin = QPoint()
+        self._resize_geo = QRect()
         self._op_anim: QPropertyAnimation | None = None
         self._toc_open = False
         self._settings_open = False
@@ -670,6 +673,8 @@ class MainWindow(QWidget):
             if (x, y) != (self.x(), self.y()):
                 self.move(x, y)
             self._layout_panels()
+        elif key == "page_mode":
+            pass
         elif key in ("text_alpha", "ghost_text"):
             # 只重排正文，不用重建整个面板
             self.reader.apply_settings()
@@ -872,12 +877,22 @@ class MainWindow(QWidget):
         if e.button() == Qt.MouseButton.LeftButton:
             edge = self._edge_at(e.position().toPoint())
             if edge:
-                handle = self.windowHandle()
-                if handle is not None:
-                    handle.startSystemResize(edge)
-                    e.accept()
-                    return
+                # 自己算几何，不依赖 startSystemResize（无边框 + 透明窗口上它不稳定）
+                self._resizing_edge = edge
+                self._resize_origin = e.globalPosition().toPoint()
+                self._resize_geo = self.geometry()
+                e.accept()
+                return
         super().mousePressEvent(e)
+
+    def mouseReleaseEvent(self, e):
+        if self._resizing_edge:
+            self._resizing_edge = Qt.Edge(0)
+            self.s.win_w, self.s.win_h = self.width(), self.height()
+            self._persist()
+            e.accept()
+            return
+        super().mouseReleaseEvent(e)
 
     def _edge_at(self, pos: QPoint) -> Qt.Edge:
         edge = Qt.Edge(0)
@@ -892,6 +907,25 @@ class MainWindow(QWidget):
         return edge
 
     def mouseMoveEvent(self, e):
+        if self._resizing_edge:
+            d = e.globalPosition().toPoint() - self._resize_origin
+            x, y, w, h = self._resize_geo.getRect()
+            if self._resizing_edge & Qt.Edge.LeftEdge:
+                x += d.x()
+                w -= d.x()
+            if self._resizing_edge & Qt.Edge.RightEdge:
+                w += d.x()
+            if self._resizing_edge & Qt.Edge.TopEdge:
+                y += d.y()
+                h -= d.y()
+            if self._resizing_edge & Qt.Edge.BottomEdge:
+                h += d.y()
+            w = max(self.minimumWidth(), w)
+            h = max(self.minimumHeight(), h)
+            self.setGeometry(x, y, w, h)
+            e.accept()
+            return
+
         pos = e.position().toPoint()
         edge = self._edge_at(pos)
         cursor = Qt.CursorShape.ArrowCursor

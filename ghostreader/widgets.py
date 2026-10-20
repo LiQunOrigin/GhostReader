@@ -771,6 +771,21 @@ class SettingsPanel(QWidget):
         self.themes.picked.connect(self.themePicked)
         self.body.addWidget(self.themes)
 
+        # 翻页方式
+        self.body.addWidget(self._divider())
+        self.body.addWidget(SectionLabel("翻页"))
+        self.page_mode = QComboBox()
+        self.page_mode.setFont(ui_font(11))
+        for label, value in (
+            ("整页翻页 · 像纸质书", "page"),
+            ("连续滚动", "scroll"),
+        ):
+            self.page_mode.addItem(label, value)
+        pi = self.page_mode.findData(s.page_mode)
+        self.page_mode.setCurrentIndex(pi if pi >= 0 else 0)
+        self.page_mode.currentIndexChanged.connect(lambda _: self._emit("page_mode"))
+        self.body.addWidget(self.page_mode)
+
         # 字体
         self.body.addWidget(self._divider())
         self.body.addWidget(SectionLabel("字体"))
@@ -901,6 +916,8 @@ class SettingsPanel(QWidget):
             s.line_height = self.line_height.value()
         elif key == "ghost_text":
             s.ghost_text = self.ghost_text.currentData()
+        elif key == "page_mode":
+            s.page_mode = self.page_mode.currentData()
         elif key == "text_alpha":
             s.text_alpha = self.text_alpha.value() / 100.0
         elif key == "indent":
@@ -933,6 +950,8 @@ class SettingsPanel(QWidget):
         self.font_size.set_value(int(s.font_size))
         self.line_height.set_value(s.line_height)
         self.text_alpha.set_value(int(s.text_alpha * 100))
+        pm = self.page_mode.findData(s.page_mode)
+        self.page_mode.setCurrentIndex(pm if pm >= 0 else 0)
         gi = self.ghost_text.findData(s.ghost_text)
         self.ghost_text.setCurrentIndex(gi if gi >= 0 else 0)
         self.alpha.set_value(int(s.bg_alpha * 100))

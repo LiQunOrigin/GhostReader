@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 
-from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, Qt, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import (
     QColor,
     QFont,
@@ -40,6 +40,8 @@ class ReaderView(QTextBrowser):
         self._html = ""
         self._anim: QPropertyAnimation | None = None
         self._pending_fraction: float | None = None
+        self._wheel_accum = 0
+        self._press_pos: QPoint | None = None
         self._restore_timer = QTimer(self)
         self._restore_timer.setSingleShot(True)
         self._restore_timer.setInterval(140)
@@ -315,15 +317,31 @@ class ReaderView(QTextBrowser):
         self._anim.start()
 
     def page(self, direction: int) -> None:
+        """翻一页。整页模式下按「行」对齐，不会把一行切成两半。"""
         bar = self.verticalScrollBar()
-        step = int(self.viewport().height() * 0.86)
+        vp = self.viewport()
         if direction > 0 and bar.value() >= bar.maximum() - 2:
             self.reachedEnd.emit()
             return
         if direction < 0 and bar.value() <= 2:
             self.reachedStart.emit()
             return
-        self.scroll_by(direction * step)
+
+        if self.s.page_mode != "page":
+            self.scroll_by(direction * int(vp.height() * 0.86))
+            return
+
+        if direction > 0:
+            # 视口底部那一行 → 翻到顶部
+            cursor = self.cursorForPosition(QPoint(vp.width() // 2, vp.height() - 4))
+        else:
+            # 先退一屏，再把顶部那行对齐到视口顶部
+            bar.setValue(max(0, bar.value() - vp.height()))
+            cursor = self.cursorForPosition(QPoint(vp.width() // 2, 2))
+        cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
+        rect = self.cursorRect(cursor)
+        target = bar.value() + rect.top()
+        bar.setValue(max(0, min(bar.maximum(), target)))
 
     def jump(self, where: str) -> None:
         bar = self.verticalScrollBar()
@@ -345,6 +363,38 @@ class ReaderView(QTextBrowser):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.on_resize()
+
+    def wheelEvent(self, event):
+        if self.s.page_mode == "page" and not (
+            event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
+            self._wheel_accum += event.angleDelta().y()
+            if abs(self._wheel_accum) >= 40:
+                self.page(1 if self._wheel_accum < 0 else -1)
+                self._wheel_accum = 0
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+    def mousePressEvent(self, event):
+        self._press_pos = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        if self.s.page_mode != "page" or self._press_pos is None:
+            return
+        moved = (event.position().toPoint() - self._press_pos).manhattanLength()
+        self._press_pos = None
+        if moved > 10 or self.textCursor().hasSelection():
+            return
+        # 点左侧 1/3 上一页，右侧 1/3 下一页，中间留给选中文字
+        x = event.position().x()
+        w = self.viewport().width()
+        if x < w * 0.32:
+            self.page(-1)
+        elif x > w * 0.68:
+            self.page(1)
 
     def keyPressEvent(self, event):
         key = event.key()
