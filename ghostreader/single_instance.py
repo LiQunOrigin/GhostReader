@@ -76,7 +76,7 @@ def payload_from_argv(argv: list[str]) -> str:
     for a in argv:
         if a.startswith("-psn") or a.startswith("-"):
             continue
-        if a.lower().endswith(".epub"):
+        if Path(a).suffix.lower() in {".epub", ".txt", ".fb2", ".html", ".htm", ".xhtml", ".zhtml", ".docx", ".mobi", ".azw3", ".azw"}:
             # 转发给另一个进程时必须用绝对路径，对方的 CWD 不一定相同
             return str(Path(a).expanduser().resolve())
     return ""

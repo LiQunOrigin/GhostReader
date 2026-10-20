@@ -1,8 +1,9 @@
 # GhostReader · 半透明隐身 EPUB 阅读器
 
-一款本地运行的桌面 EPUB 阅读器：窗口半透明、无边框、可一键隐没，正文排版按中文长文调优。
+一款本地运行的桌面阅读器：窗口半透明、无边框、可一键隐没，正文排版按中文长文调优。
 
-纯 Python + PyQt6 实现，EPUB 解析只用标准库，不依赖任何电子书 SDK，**没有任何联网行为**。
+支持 **EPUB / TXT / FB2 / HTML / DOCX / MOBI(AZW3)** 六类文件。
+纯 Python + PyQt6 实现，所有格式解析只用标准库，不依赖任何电子书 SDK，**没有任何联网行为**。
 
 ![界面布局](docs/layout.png)
 
@@ -14,13 +15,14 @@
 
 | 能力 | 说明 |
 | --- | --- |
-| 格式 | EPUB 2 / EPUB 3 流式排版（`container.xml` → OPF → spine），含 SVG 封面 |
+| 格式 | EPUB 2/3（含 SVG 封面）、TXT（自动嗅探 UTF-8/GBK/Big5/UTF-16）、FB2、单文件 HTML/ZHTML、DOCX、MOBI/AZW3 |
+| 编码 | TXT 按 BOM → UTF-8 → GB18030 → Big5 顺序嗅探，中文老书不乱码 |
 | 目录 | 解析 EPUB3 `nav` 与 EPUB2 `NCX`，按层级缩进，支持关键词过滤 |
 | 翻页 | 默认**整页翻页**：按行对齐，不会把一行切成两半；空格 / PageDown / 滚轮 / 点击左右两侧均可翻页，可切回连续滚动 |
 | 章节 | 目录跳转、`←` `→` 翻章、书内链接跳转、翻到章末自动进下一章、章首 PageUp 回上一章末尾 |
 | 进度 | 按书保存"章节 + 章内位置"，重启后回到原处；状态栏显示全书百分比 |
 | 配图 | 内嵌图片按正文栏宽等比缩放，窗口缩放后重新适配 |
-| 打开方式 | 双击 `.epub`、拖到窗口、拖到应用图标、文件对话框、命令行参数 |
+| 打开方式 | 双击文件、拖到窗口、拖到应用图标、文件对话框、命令行参数 |
 
 ### 1.2 外观（全部实时生效）
 
@@ -50,7 +52,9 @@
 
 ### 1.4 明确不支持
 
-- 带 DRM 的电子书（Adobe ADEPT、Kindle 等）。
+- **PDF**：固定版式与流式重排冲突，且解析需要重型依赖，不做。
+- 带 DRM 的电子书（Adobe ADEPT、Kindle DRM）。
+- MOBI 的 HUFF/CDIC 压缩（少数书），以及 AZW3 的部分复杂排版。
 - 固定版式 EPUB（`rendition:layout=pre-paginated`）、漫画/画册类以图为主的排版。
 - EPUB 内复杂 CSS（多栏、绝对定位、自定义字体文件）会被简化为流式文本。
 - 全文检索、批注、多书书架（只记录"上一本"）。
@@ -209,8 +213,8 @@
 装好之后：
 
 - 双击图标启动；
-- **双击任意 `.epub` 直接打开**（首次可能需要在「打开方式」里选一次 GhostReader）；
-- 把 `.epub` 拖到图标上也能打开；
+- **双击文件直接打开**（epub / txt / fb2 / html / docx / mobi 都行；首次可能需要在「打开方式」里选一次 GhostReader）；
+- 把文件拖到图标上也能打开；
 - 已运行时再双击另一本，在同一个窗口里切换，不会开出第二个实例。
 
 首次使用全局热键，需在 **系统设置 → 隐私与安全性 → 辅助功能** 里勾选 GhostReader。
@@ -270,7 +274,12 @@ python main.py --alpha 0.8 --ghost --no-global-hotkey
 GhostReader/
 ├── main.py                  入口、命令行参数、单实例、FileOpen 事件、崩溃日志
 ├── ghostreader/
+│   ├── documents.py         格式分派、HTML 分章、公共工具
 │   ├── epub.py              EPUB 解包、OPF/NCX/Nav 解析、XHTML 净化
+│   ├── txt.py               TXT 编码嗅探、章节切分
+│   ├── fb2.py               FictionBook 解析
+│   ├── docx.py              DOCX 段落抽取
+│   ├── mobi.py              MOBI/AZW3 的 PalmDOC 解压
 │   ├── reader.py            富文本视图、CSS 排版、整页翻页、插图适配
 │   ├── window.py            无边框半透明主窗口、托盘、热键、幽灵模式、手动缩放
 │   ├── widgets.py           矢量图标、滑杆、开关、抽屉、提示气泡
@@ -294,6 +303,7 @@ GhostReader/
 
 - **不用 WebEngine**：改用 `QTextBrowser` 富文本渲染，启动快、内存小（约 80 MB），且天然支持"文字不透明 + 背景半透明"的分层绘制。
 - **排版交给 CSS**：Qt 富文本支持 `text-indent` / `line-height` / `margin` / `font-size`，但不支持 `body` 继承、`em`、百分比字号——所以字号用 pt、缩进用 px，全部算好后拼进样式表，改字号只需重排当前章节。
-- **自写 EPUB 解析**：只用 `zipfile` + `xml.etree` + `html.parser`，把 XHTML 压平成 Qt 能稳定渲染的标签子集。
+- **所有格式自写解析**：只用 `zipfile` + `xml.etree` + `html.parser`，把各种容器统一成同一套 `Book / Chapter` 结构，阅读器完全不感知来源；XHTML 会被压平成 Qt 能稳定渲染的标签子集。
+- **TXT 分章靠标题正则**：`第X章 / 卷X / 序章 / 楔子 / 番外 / Chapter N`，并限制标题行长度，避免正文里出现"第一章"就被切开；识别不到标题时按 6000 字切块。
 - **单层卡片绘制**：背景一次画成圆角卡片，低透明度时用"内层纸面"补实，避免出现"色块接缝"。
 - **离屏截图回归**：`tools/screenshot.py` 可在无显示器环境下渲染窗口并合成到模拟桌面上，用来检查透明度、排版与配色——本文档里的截图都是它生成的。

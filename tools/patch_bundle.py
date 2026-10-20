@@ -22,14 +22,26 @@ def patch(app: Path) -> bool:
         return False
     data = plistlib.loads(info.read_bytes())
     if not data.get("CFBundleDocumentTypes"):
-        data["CFBundleDocumentTypes"] = [
-            {
-                "CFBundleTypeName": "EPUB 电子书",
+        def doc_type(name, utis, exts):
+            return {
+                "CFBundleTypeName": name,
                 "CFBundleTypeRole": "Viewer",
                 "LSHandlerRank": "Alternate",
-                "LSItemContentTypes": ["org.idpf.epub-container"],
-                "CFBundleTypeExtensions": ["epub"],
+                "LSItemContentTypes": utis,
+                "CFBundleTypeExtensions": exts,
             }
+
+        data["CFBundleDocumentTypes"] = [
+            doc_type("EPUB 电子书", ["org.idpf.epub-container"], ["epub"]),
+            doc_type("纯文本", ["public.plain-text"], ["txt"]),
+            doc_type("网页", ["public.html"], ["html", "htm", "xhtml", "zhtml"]),
+            doc_type("FictionBook", ["public.xml"], ["fb2"]),
+            doc_type(
+                "Word 文档",
+                ["org.openxmlformats.wordprocessingml.document"],
+                ["docx"],
+            ),
+            doc_type("Kindle 电子书", ["public.data"], ["mobi", "azw3", "azw"]),
         ]
     info.write_bytes(plistlib.dumps(data))
     print("已写入 CFBundleDocumentTypes")

@@ -41,7 +41,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from . import epub
+from . import documents, epub
 from .epub import Book
 from .reader import ReaderView
 from .settings import THEMES, Settings
@@ -571,14 +571,17 @@ class MainWindow(QWidget):
     def choose_book(self):
         start = str(Path(self.s.last_book).parent) if self.s.last_book else str(Path.home())
         path, _ = QFileDialog.getOpenFileName(
-            self, "打开 EPUB", start, "EPUB 电子书 (*.epub *.EPUB);;所有文件 (*)"
+            self,
+            "打开电子书",
+            start,
+            documents.FILE_FILTER,
         )
         if path:
             self.open_book(path)
 
     def open_book(self, path: str, silent: bool = False):
         try:
-            book = epub.open_epub(path)
+            book = documents.open_document(path)
         except Exception as exc:
             self.toast.show_message(f"打开失败：{exc}", 3200)
             return
@@ -960,7 +963,7 @@ class MainWindow(QWidget):
     def dragEnterEvent(self, e):
         if e.mimeData().hasUrls():
             for url in e.mimeData().urls():
-                if url.toLocalFile().lower().endswith(".epub"):
+                if documents.is_supported(url.toLocalFile()):
                     e.acceptProposedAction()
                     return
         e.ignore()
@@ -968,7 +971,7 @@ class MainWindow(QWidget):
     def dropEvent(self, e):
         for url in e.mimeData().urls():
             p = url.toLocalFile()
-            if p.lower().endswith(".epub"):
+            if documents.is_supported(p):
                 self.open_book(p)
                 break
 

@@ -519,7 +519,9 @@ def cleanup(book: Book | None) -> None:
     if not book:
         return
     try:
-        if book.root.name.startswith("ghostreader-"):
+        # 只清理我们自己解包的临时目录，且必须确认里面确实是 EPUB 结构，
+        # 否则 TXT 书的 root 指向用户目录时会被误删。
+        if book.root.name.startswith("ghostreader-") and (book.root / "META-INF").is_dir():
             shutil.rmtree(book.root, ignore_errors=True)
     except OSError:
         pass
