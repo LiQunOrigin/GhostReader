@@ -57,7 +57,8 @@ class Settings:
     padding: int = 44             # 正文内边距
 
     # 隐身
-    ghost_text: str = "light"   # 幽灵模式文字色：light / dark / theme
+    ghost_text: str = "light"   # 已废弃，保留仅为兼容旧配置
+    ghost_backing: float = 0.12  # 幽灵模式给文字垫的底色浓度（0 = 完全透明）
     idle_fade: bool = True
     idle_opacity: float = 0.42
     idle_delay_ms: int = 0   # 0 = 鼠标离开立即淡化
@@ -120,6 +121,7 @@ class Settings:
         self.font_size = min(40.0, max(11.0, float(self.font_size)))
         self.line_height = int(min(260, max(120, self.line_height)))
         self.text_alpha = min(1.0, max(0.25, float(self.text_alpha)))
+        self.ghost_backing = min(0.6, max(0.0, float(self.ghost_backing)))
         self.bg_alpha = min(1.0, max(0.15, float(self.bg_alpha)))
         self.window_opacity = min(1.0, max(0.30, float(self.window_opacity)))
         self.idle_opacity = min(1.0, max(0.15, float(self.idle_opacity)))

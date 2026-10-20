@@ -11,6 +11,7 @@ import re
 from PyQt6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import (
     QColor,
+    QPalette,
     QFont,
     QImage,
     QPalette,
@@ -154,11 +155,31 @@ class ReaderView(QTextBrowser):
         else:
             self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
+    def _apply_viewport_backing(self) -> None:
+        """幽灵模式给正文视口垫一层极淡的纸色。
+
+        文字直接画在透明表面上时，抗锯齿只能拿白色当过渡色，在深色桌面上
+        会形成一圈白边（看起来像描边）。垫一层几乎看不见的底色后，过渡色
+        变成纸色，边缘就自然了。浓度可调，设为 0 即完全透明。
+        """
+        vp = self.viewport()
+        if not self.ghost_mode:
+            vp.setAutoFillBackground(False)
+            return
+        c = QColor(self.s.bg_color)
+        c.setAlphaF(float(self.s.ghost_backing))
+        vp.setAutoFillBackground(True)
+        pal = vp.palette()
+        pal.setColor(QPalette.ColorRole.Base, c)
+        pal.setColor(QPalette.ColorRole.Window, c)
+        vp.setPalette(pal)
+
     def set_ghost_mode(self, on: bool) -> None:
         """幽灵模式背景全透明，文字改用独立配色，保证在任何桌面上都看得清。"""
         if self.ghost_mode == on:
             return
         self.ghost_mode = on
+        self._apply_viewport_backing()
         self.refresh_layout()
 
     def refresh_layout(self) -> None:

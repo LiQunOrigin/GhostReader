@@ -408,8 +408,7 @@ class MainWindow(QWidget):
         path.addRoundedRect(outer, RADIUS, RADIUS)
 
         if self._ghost:
-            # 幽灵模式：不画任何背景，只留子控件（正文）绘制。
-            # 注意不能用 CompositionMode_Source 清屏——会把子控件一起抹掉。
+            # 幽灵模式：窗口层不画任何东西，文字底衬由 reader 的视口负责
             p.end()
             return
 
@@ -712,6 +711,8 @@ class MainWindow(QWidget):
             self._layout_panels()
         elif key == "page_mode":
             pass
+        elif key == "ghost_backing":
+            self.reader._apply_viewport_backing()
         elif key == "text_alpha":
             # 只重排正文，不用重建整个面板
             self.reader.apply_settings()
