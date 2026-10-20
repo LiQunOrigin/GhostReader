@@ -442,6 +442,109 @@ class SwitchRow(QWidget):
         self.switch.set_palette_colors(pal)
 
 
+class ColorChips(QWidget):
+    """一排预设文字颜色 + 自定义入口。"""
+
+    picked = pyqtSignal(str)
+
+    PRESETS = [
+        "#1F1F1F", "#33291C", "#5B5148", "#7A7A7A",
+        "#B9BCC2", "#F2EFE8", "#A33A2E", "#1F6FB2",
+        "#2E7D5B", "#8A5A2B",
+    ]
+
+    def __init__(self, current: str, parent=None):
+        super().__init__(parent)
+        self.current = current.lower()
+        from PyQt6.QtWidgets import QGridLayout
+
+        grid = QGridLayout(self)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(7)
+        grid.setVerticalSpacing(7)
+        self._chips: list[QWidget] = []
+        for i, color in enumerate(self.PRESETS):
+            chip = _ColorDot(color, color.lower() == self.current)
+            chip.clicked.connect(lambda c=color: self._pick(c))
+            grid.addWidget(chip, i // 6, i % 6)
+            self._chips.append(chip)
+        self.custom = _ColorDot(self.current, False, label="+")
+        self.custom.clicked.connect(self._pick_custom)
+        grid.addWidget(self.custom, len(self.PRESETS) // 6, len(self.PRESETS) % 6)
+        grid.setColumnStretch(6, 1)
+
+    def _pick(self, color: str):
+        self.current = color.lower()
+        for chip in self._chips:
+            chip.selected = chip.color.lower() == self.current
+            chip.update()
+        self.custom.selected = False
+        self.custom.update()
+        self.picked.emit(color)
+
+    def _pick_custom(self):
+        from PyQt6.QtWidgets import QColorDialog
+
+        picked = QColorDialog.getColor(qcolor(self.current), self, "选择文字颜色")
+        if picked.isValid():
+            self.current = picked.name()
+            self.picked.emit(self.current)
+            for chip in self._chips:
+                chip.selected = False
+                chip.update()
+            self.custom.color = self.current
+            self.custom.selected = True
+            self.custom.update()
+
+    def set_color(self, color: str):
+        self.current = color.lower()
+        for chip in self._chips:
+            chip.selected = chip.color.lower() == self.current
+            chip.update()
+        self.custom.selected = not any(c.selected for c in self._chips)
+        self.custom.update()
+
+    def apply_palette(self, pal: Palette):
+        for chip in self._chips + [self.custom]:
+            chip.ring = pal.fg
+            chip.update()
+
+
+class _ColorDot(QWidget):
+    clicked = pyqtSignal()
+
+    def __init__(self, color: str, selected: bool, label: str = ""):
+        super().__init__()
+        self.color = color
+        self.selected = selected
+        self.label = label
+        self.ring = QColor("#888888")
+        self.setFixedSize(22, 22)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip(color)
+
+    def mousePressEvent(self, _e):
+        self.clicked.emit()
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        r = QRectF(self.rect()).adjusted(3.5, 3.5, -3.5, -3.5)
+        if self.selected:
+            p.setPen(QPen(self.ring, 1.3))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawEllipse(r.adjusted(-2.6, -2.6, 2.6, 2.6))
+        c = qcolor(self.color)
+        p.setPen(QPen(mix(c, QColor("#888888"), 0.45), 1))
+        p.setBrush(c)
+        p.drawEllipse(r)
+        if self.label:
+            p.setPen(QPen(mix(c, QColor("#000000" if c.lightness() > 128 else "#FFFFFF"), 0.55), 1.4))
+            p.setFont(ui_font(9, QFont.Weight.DemiBold))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.label)
+        p.end()
+
+
 class ThemeChips(QWidget):
     picked = pyqtSignal(int)
 
@@ -805,7 +908,7 @@ class SettingsPanel(QWidget):
         # 用系统默认灰盖住面板底色，必须显式关掉
         inner.setAutoFillBackground(False)
         self.body = QVBoxLayout(inner)
-        self.body.setContentsMargins(0, 0, 6, 14)
+        self.body.setContentsMargins(0, 0, 14, 14)
         self.body.setSpacing(12)
         scroll.setWidget(inner)
         self._scroll = scroll
@@ -858,6 +961,11 @@ class SettingsPanel(QWidget):
         self.line_height = SliderRow("行距", 120, 240, s.line_height, "%")
         self.line_height.valueChanged.connect(lambda v: self._emit("line_height"))
         self.body.addWidget(self.line_height)
+
+        self.body.addWidget(SectionLabel("字体颜色"))
+        self.text_colors = ColorChips(s.text_color)
+        self.text_colors.picked.connect(lambda c: self._emit("text_color"))
+        self.body.addWidget(self.text_colors)
 
         self.text_alpha = SliderRow("字体不透明度", 25, 100, int(s.text_alpha * 100), "%")
         self.text_alpha.valueChanged.connect(lambda v: self._emit("text_alpha"))
@@ -944,6 +1052,7 @@ class SettingsPanel(QWidget):
         return d
 
     def _font_choices(self) -> list[str]:
+        """常用中文字体排在前面，其余系统字体按字母序接在后面。"""
         families = set(QFontDatabase.families())
         preferred = [
             "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif CJK SC", "SimSun",
@@ -951,9 +1060,13 @@ class SettingsPanel(QWidget):
             "Heiti SC", "Avenir Next", "Georgia", "Times New Roman",
         ]
         out = [f for f in preferred if f in families]
-        if not out:
-            out = sorted(families)[:20]
-        return out
+        # 过滤掉纯符号/表情字体，它们没有汉字字形
+        skip = ("emoji", "symbol", "wingdings", "webdings", "dingbat", "lastresort")
+        rest = sorted(
+            f for f in families
+            if f not in out and not f.startswith(".") and not any(k in f.lower() for k in skip)
+        )
+        return out + rest
 
     def _emit(self, key: str):
         s = self.s
@@ -967,6 +1080,8 @@ class SettingsPanel(QWidget):
             s.ghost_text = self.ghost_text.currentData()
         elif key == "page_mode":
             s.page_mode = self.page_mode.currentData()
+        elif key == "text_color":
+            s.text_color = self.text_colors.current
         elif key == "text_alpha":
             s.text_alpha = self.text_alpha.value() / 100.0
         elif key == "indent":
@@ -999,6 +1114,7 @@ class SettingsPanel(QWidget):
         self.font_size.set_value(int(s.font_size))
         self.line_height.set_value(s.line_height)
         self.text_alpha.set_value(int(s.text_alpha * 100))
+        self.text_colors.set_color(s.text_color)
         pm = self.page_mode.findData(s.page_mode)
         self.page_mode.setCurrentIndex(pm if pm >= 0 else 0)
         gi = self.ghost_text.findData(s.ghost_text)
@@ -1065,6 +1181,7 @@ class SettingsPanel(QWidget):
             tp.setColor(QPalette.ColorRole.Base, pal.panel)
             target.setPalette(tp)
         self.themes.apply_palette(pal)
+        self.text_colors.apply_palette(pal)
         self.hint.setStyleSheet(f"color:{rgba(pal.faint,1)};")
         self.reset.apply_palette(pal)
 
