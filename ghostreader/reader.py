@@ -147,11 +147,18 @@ class ReaderView(QTextBrowser):
             base.setStyleStrategy(QFont.StyleStrategy.NoSubpixelAntialias)
         doc.setDefaultFont(base)
         doc.setDefaultStyleSheet(self._css())
-        self._update_doc_margin()
         self.setHtml(f"<html><body>{self._html}</body></html>")
+        # setHtml 会把 textWidth 重置成内容自然宽度，必须在这之后再绑定视口宽度，
+        # 否则文字比可视区宽，右边一列会被裁掉。
+        self._update_doc_margin()
         self._fit_images()
         self._restyle_scrollbar()
         self._restyle_selection()
+        # 翻页模式不需要滚动条，留着反而会占宽度、挡住右边一列字
+        if self.s.page_mode == "page":
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        else:
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
     def set_ghost_mode(self, on: bool) -> None:
         """幽灵模式背景全透明，文字改用独立配色，保证在任何桌面上都看得清。"""
@@ -187,18 +194,34 @@ class ReaderView(QTextBrowser):
         self._update_doc_margin()
         self._fit_images()
         self._restore_timer.start()
+        # QTextEdit 自己的 relayout 会把 textWidth 改成比视口宽的值（实测 712 → 878.9），
+        # 导致右侧一列字被裁掉，所以下一帧再强制校正一次。
+        QTimer.singleShot(0, self._enforce_width)
+
+    def _enforce_width(self) -> None:
+        if self.placeholder or not self._html:
+            return
+        vw = float(self.viewport().width())
+        if abs(self.document().textWidth() - vw) > 1.0:
+            self._update_doc_margin()
+            self._fit_images()
 
     def _restore_position(self) -> None:
         if self._pending_fraction is None:
             return
-        # 强制先把文档布局算完，否则滚动条范围还是 0，位置会被钳到章首
-        self.document().adjustSize()
+        # 先让布局算完（滚动条范围才有值），否则位置会被钳到章首。
+        # 注意不能用 adjustSize()：它会把 textWidth 改成内容自然宽度，
+        # 导致文字比视口宽、右侧被裁。
+        self.document().size()
         self._set_fraction(self._pending_fraction)
         self._pending_fraction = None
 
     def _update_doc_margin(self) -> None:
         """正文栏宽 + 自动居中：窗口变宽时留白增加，而不是把一行拉得太长。"""
         vw = max(200, self.viewport().width())
+        # 关键：文档宽度必须显式跟随视口，否则 setHtml 之后 textWidth 会按内容
+        # 自然宽度计算，文字比可视区宽，右边就被裁掉了。
+        self.document().setTextWidth(float(vw))
         pad = self.s.padding
         col = min(float(self.s.reading_width), max(180.0, vw - 2 * pad))
         self.document().setDocumentMargin(max(float(pad), (vw - col) / 2.0))

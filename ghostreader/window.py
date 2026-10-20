@@ -11,6 +11,7 @@ from PyQt6.QtCore import (
     QEasingCurve,
     QEvent,
     QPoint,
+    QPointF,
     QPropertyAnimation,
     QRect,
     QRectF,
@@ -430,6 +431,14 @@ class MainWindow(QWidget):
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.setPen(QPen(qca(pal.fg, 0.10 if pal.light else 0.16), 1))
         p.drawRoundedRect(outer.adjusted(0.5, 0.5, -0.5, -0.5), RADIUS, RADIUS)
+
+        # 右下角缩放手柄：三条斜线，提示这里可以拖
+        pen = QPen(qca(pal.fg, 0.26 if self.underMouse() else 0.18), 1.2)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        p.setPen(pen)
+        bx, by = outer.right() - 6, outer.bottom() - 6
+        for i in range(3):
+            p.drawLine(QPointF(bx - 4 * i, by), QPointF(bx, by - 4 * i))
         p.end()
 
     # ------------------------------------------------------------ 主题
@@ -620,9 +629,11 @@ class MainWindow(QWidget):
             self.toggle_toc()
 
     def _on_scroll(self, _frac: float):
-        # 滚动会连续触发，节流后再刷新状态栏，避免每帧重绘
-        if not self._status_timer.isActive():
-            self._status_timer.start()
+        # 滚动会连续触发，节流后再刷新状态栏，避免每帧重绘。
+        # 初始化阶段（定时器还没建）会先收到滚动信号，这里必须容错。
+        timer = getattr(self, "_status_timer", None)
+        if timer is not None and not timer.isActive():
+            timer.start()
 
     def _refresh_status_throttled(self):
         self._update_status()
