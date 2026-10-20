@@ -97,14 +97,8 @@ class ReaderView(QTextBrowser):
         body_px = size * 4.0 / 3.0
         lh_px = body_px * (s.line_height / 100.0)
         indent = body_px * 2 if s.indent else 0.0
-        # 幽灵模式没有纸面衬底，正文色会和深色桌面糊在一起，
-        # 所以这里用一档柔和的灰白（不是纯白，不刺眼），可再用 text_alpha 调淡。
-        if self.ghost_mode and s.ghost_text == "light":
-            tc = QColor("#C9C5BD")
-        elif self.ghost_mode and s.ghost_text == "dark":
-            tc = QColor("#2A2A2A")
-        else:
-            tc = QColor(s.text_color)
+        # 幽灵模式与普通模式共用同一套字体与颜色，不再单独配色
+        tc = QColor(s.text_color)
         text = f"rgba({tc.red()},{tc.green()},{tc.blue()},{float(s.text_alpha):.2f})"
         para_gap = body_px * 0.35
         h1, h2, h3 = body_px * 1.55, body_px * 1.28, body_px * 1.12

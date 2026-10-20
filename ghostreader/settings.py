@@ -102,9 +102,6 @@ class Settings:
             s.idle_fade = True
             s.idle_delay_ms = 0
         if legacy or int(data.get("config_version", 0) or 0) < 3:
-            # 3.x 起幽灵模式默认用浅灰白：跟随主题时深色字会和深色桌面糊在一起
-            if s.ghost_text == "theme":
-                s.ghost_text = "light"
             s.config_version = 3
         s.clamp()
         return s

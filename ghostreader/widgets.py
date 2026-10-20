@@ -5,6 +5,7 @@ from __future__ import annotations
 from PyQt6.QtCore import (
     QEasingCurve,
     QEvent,
+    QObject,
     QPoint,
     QPointF,
     QPropertyAnimation,
@@ -30,6 +31,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import (
     QAbstractButton,
+    QApplication,
     QComboBox,
     QFrame,
     QGraphicsOpacityEffect,
@@ -301,6 +303,24 @@ class Switch(QAbstractButton):
         p.setBrush(QColor("#FFFFFF") if pal.light else QColor("#EDEDED"))
         p.drawEllipse(QRectF(x, r.top() + 2.5, d, d))
         p.end()
+
+
+class WheelForwarder(QObject):
+    """把滚轮事件从滑块/下拉转发给滚动区。
+
+    QSlider 默认响应滚轮改值，面板里滚动时鼠标一停在滑块上就会误改参数，
+    所以这里统一把滚轮转交给外层 QScrollArea。
+    """
+
+    def __init__(self, target):
+        super().__init__(target)
+        self.target = target
+
+    def eventFilter(self, obj, ev):
+        if ev.type() == QEvent.Type.Wheel:
+            QApplication.sendEvent(self.target, ev)
+            return True
+        return False
 
 
 class Slider(QSlider):
@@ -992,21 +1012,6 @@ class SettingsPanel(QWidget):
 
         # 透明与窗口
         self.body.addWidget(self._divider())
-        self.body.addWidget(self._divider())
-        self.body.addWidget(SectionLabel("幽灵模式文字"))
-        self.ghost_text = QComboBox()
-        self.ghost_text.setFont(ui_font(11))
-        for label, value in (
-            ("浅灰白 · 适合深色桌面", "light"),
-            ("深灰 · 适合浅色桌面", "dark"),
-            ("跟随主题", "theme"),
-        ):
-            self.ghost_text.addItem(label, value)
-        cur = self.ghost_text.findData(s.ghost_text)
-        self.ghost_text.setCurrentIndex(cur if cur >= 0 else 0)
-        self.ghost_text.currentIndexChanged.connect(lambda _: self._emit("ghost_text"))
-        self.body.addWidget(self.ghost_text)
-
         self.body.addWidget(SectionLabel("透明与窗口"))
         self.alpha = SliderRow("背景不透明度", 15, 100, int(s.bg_alpha * 100), "%")
         self.alpha.valueChanged.connect(lambda v: self._emit("bg_alpha"))
@@ -1042,6 +1047,13 @@ class SettingsPanel(QWidget):
 
         self.body.addStretch(1)
 
+        # 滑块与下拉不响应滚轮，统一交给面板滚动
+        self._wheel_filter = WheelForwarder(scroll.viewport())
+        for combo in self.findChildren(QComboBox):
+            combo.installEventFilter(self._wheel_filter)
+        for slider in self.findChildren(QSlider):
+            slider.installEventFilter(self._wheel_filter)
+
         self.reset = _LinkButton("恢复默认外观")
         self.reset.clicked.connect(self.resetClicked)
         outer.addWidget(self.reset, 0, Qt.AlignmentFlag.AlignLeft)
@@ -1076,8 +1088,6 @@ class SettingsPanel(QWidget):
             s.font_size = float(self.font_size.value())
         elif key == "line_height":
             s.line_height = self.line_height.value()
-        elif key == "ghost_text":
-            s.ghost_text = self.ghost_text.currentData()
         elif key == "page_mode":
             s.page_mode = self.page_mode.currentData()
         elif key == "text_color":
@@ -1117,8 +1127,6 @@ class SettingsPanel(QWidget):
         self.text_colors.set_color(s.text_color)
         pm = self.page_mode.findData(s.page_mode)
         self.page_mode.setCurrentIndex(pm if pm >= 0 else 0)
-        gi = self.ghost_text.findData(s.ghost_text)
-        self.ghost_text.setCurrentIndex(gi if gi >= 0 else 0)
         self.alpha.set_value(int(s.bg_alpha * 100))
         self.win_op.set_value(int(s.window_opacity * 100))
         self.width_slider.set_value(s.reading_width)

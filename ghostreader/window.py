@@ -712,7 +712,7 @@ class MainWindow(QWidget):
             self._layout_panels()
         elif key == "page_mode":
             pass
-        elif key in ("text_alpha", "ghost_text"):
+        elif key == "text_alpha":
             # 只重排正文，不用重建整个面板
             self.reader.apply_settings()
         elif key in ("bg_alpha", "column_backing"):
