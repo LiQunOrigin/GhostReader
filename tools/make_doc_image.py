@@ -37,9 +37,10 @@ ANNOTATIONS = [
 
 def main() -> int:
     app = QApplication(sys.argv[:1])
-    src = QImage("/tmp/final_read.png")
+    src_path = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs" / "shots" / "read.png"
+    src = QImage(str(src_path))
     if src.isNull():
-        print("缺少底图，请先运行 tools/screenshot.py --state read")
+        print(f"缺少底图：{src_path}")
         return 1
 
     pad_r, pad_b, pad_t = 356, 60, 76
@@ -61,7 +62,7 @@ def main() -> int:
     p.drawText(
         QRectF(40, 50, 700, 20),
         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-        "无边框半透明窗口 · 背景 88% 不透明度 · 正文文字始终不透明",
+        "无边框半透明窗口 · 背景 88% 不透明度 · 文字默认完全不透明（可单独调淡）",
     )
 
     p.drawImage(0, pad_t, src)
