@@ -85,8 +85,9 @@ class Palette:
         light = self.bg.lightness() > 128
         self.light = light
         toward = QColor("#FFFFFF") if light else QColor("#000000")
-        self.panel = mix(self.bg, self.fg, 0.055 if light else 0.075)
-        self.raised = mix(self.bg, self.fg, 0.085 if light else 0.12)
+        # 面板（目录 / 设置）只比纸面深一点点，避免看起来像蒙了一层灰
+        self.panel = mix(self.bg, self.fg, 0.018 if light else 0.045)
+        self.raised = mix(self.bg, self.fg, 0.055 if light else 0.10)
         self.border = mix(self.bg, self.fg, 0.16)
         self.hover = mix(self.bg, self.fg, 0.10)
         self.muted = mix(self.fg, self.bg, 0.42)
@@ -701,7 +702,7 @@ class TocPanel(QWidget):
         self.count.setStyleSheet(f"color:{rgba(pal.faint,1)};")
         self.search.setStyleSheet(
             f"""
-            QLineEdit {{ background:{rgba(pal.fg,0.06)}; border:none; border-radius:7px;
+            QLineEdit {{ background:{rgba(pal.fg,0.045)}; border:none; border-radius:7px;
                          padding:6px 9px; color:{rgba(pal.fg,0.92)};
                          selection-background-color:{rgba(pal.accent,0.35)}; }}
             QLineEdit:focus {{ background:{rgba(pal.fg,0.09)}; }}
@@ -975,10 +976,10 @@ class SettingsPanel(QWidget):
             QLabel {{ color: {rgba(pal.muted, 1)}; }}
             QScrollArea {{ background: transparent; border: none; }}
             QComboBox {{
-                background: {rgba(pal.fg, 0.06)}; border: none; border-radius: 7px;
+                background: {rgba(pal.fg, 0.045)}; border: none; border-radius: 7px;
                 padding: 6px 9px; color: {rgba(pal.fg, 0.92)}; min-height: 20px;
             }}
-            QComboBox:hover {{ background: {rgba(pal.fg, 0.09)}; }}
+            QComboBox:hover {{ background: {rgba(pal.fg, 0.07)}; }}
             QComboBox::drop-down {{ border: none; width: 18px; }}
             QComboBox QAbstractItemView {{
                 background: {rgba(pal.raised, 0.98)}; color: {rgba(pal.fg, 0.92)};
