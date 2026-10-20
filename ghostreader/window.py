@@ -52,6 +52,7 @@ from .stealth import (
     set_click_through,
 )
 from .widgets import (
+    IconButton,
     Palette,
     SettingsPanel,
     TitleBar,
@@ -203,6 +204,7 @@ class MainWindow(QWidget):
 
         self._ensure_font_available()
         self._build_ui()
+        self._build_ghost_buttons()
         self._build_shortcuts()
         self._build_tray()
         self._restore_geometry()
@@ -232,6 +234,16 @@ class MainWindow(QWidget):
             if name in families:
                 self.s.font_family = name
                 return
+
+    def _build_ghost_buttons(self):
+        """幽灵模式下标题栏隐藏，这两个按钮浮在正文之上。"""
+        self._g_toc = IconButton("menu", "目录 (⌘⇧L)", parent=self)
+        self._g_toc.clicked.connect(self.toggle_toc)
+        self._g_exit = IconButton("ghost", "退出幽灵模式 (⌘⇧G)", parent=self)
+        self._g_exit.clicked.connect(self.toggle_ghost)
+        for btn in (self._g_toc, self._g_exit):
+            btn.hide()
+            btn.set_palette_colors(self.pal)
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -461,6 +473,28 @@ class MainWindow(QWidget):
         self._apply_opacity(animate=False)
         self._layout_panels()
         self.update()
+
+    def _apply_ghost_layout(self):
+        """幽灵模式下正文铺满整个窗口，这样底衬的边界就落在窗口边缘。"""
+        lay = self.layout()
+        if self._ghost:
+            lay.setContentsMargins(0, 0, 0, 0)
+        else:
+            lay.setContentsMargins(MARGIN + 14, MARGIN + 4, MARGIN + 14, MARGIN + 6)
+        self._layout_ghost_buttons()
+        self.reader.on_resize()
+
+    def _layout_ghost_buttons(self):
+        if not hasattr(self, "_g_toc"):
+            return
+        for btn in (self._g_toc, self._g_exit):
+            btn.setVisible(self._ghost)
+        if not self._ghost:
+            return
+        self._g_toc.move(10, 8)
+        self._g_exit.move(self.width() - self._g_exit.width() - 10, 8)
+        self._g_toc.raise_()
+        self._g_exit.raise_()
 
     def _apply_window_flags(self):
         """只有置顶状态真的变化时才重建窗口。
@@ -786,14 +820,16 @@ class MainWindow(QWidget):
         self._ghost = not self._ghost
         if self._ghost:
             self.status.hide()
+            self.title_bar.hide()
             self._close_panels()
             self._mouse_inside = self.frameGeometry().contains(QCursor.pos())
             self.toast.show_message("幽灵模式：背景全透明，鼠标移开即隐没；⌘⇧G 退出", 2600)
         else:
             self.status.show()
+            self.title_bar.show()
             self._mouse_inside = True
-        self.title_bar.set_ghost_mode(self._ghost)
         self.reader.set_ghost_mode(self._ghost)
+        self._apply_ghost_layout()
         self.toc.set_ghost_mode(self._ghost)
         self.title_bar.btn_ghost.setChecked(self._ghost)
         self.act_ghost.setChecked(self._ghost)
@@ -902,6 +938,7 @@ class MainWindow(QWidget):
     def resizeEvent(self, e):
         super().resizeEvent(e)
         self._layout_panels()
+        self._layout_ghost_buttons()
         # 拖动窗口边缘后把尺寸回写到设置面板。
         # 正在拖滑块时不要回写，否则会把滑块拽回去、拖动被打断。
         if hasattr(self.panel, "win_w"):

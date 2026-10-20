@@ -22,6 +22,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import (
     QColor,
     QPainter,
+    QPainterPath,
     QPalette,
     QLinearGradient,
     QFont,
@@ -203,6 +204,11 @@ class ReaderView(QTextBrowser):
             if w > 40 and h > 40:
                 p = QPainter(vp)
                 p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+                # 幽灵模式下正文铺满整个窗口，底衬要按窗口圆角裁剪，
+                # 否则四角会露出直角的底色
+                clip = QPainterPath()
+                clip.addRoundedRect(QRectF(0, 0, w, h), 16, 16)
+                p.setClipPath(clip)
                 c = QColor(self.s.bg_color)
                 a = int(255 * float(self.s.ghost_backing))
                 # 1) 铺满整块
