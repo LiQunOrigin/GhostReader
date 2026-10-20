@@ -75,6 +75,7 @@ class Settings:
 
     # 阅读状态
     last_book: str = ""
+    recent: list = field(default_factory=list)   # 最近打开的书籍路径
     progress: dict = field(default_factory=dict)
 
     # ---------------------------------------------------------------
@@ -140,6 +141,13 @@ class Settings:
     def get_progress(self) -> tuple[int, float]:
         rec = self.progress.get(self.book_key()) or {}
         return int(rec.get("chapter", 0)), float(rec.get("fraction", 0.0))
+
+    def push_recent(self, path: str) -> None:
+        """把一本书放进最近列表（去重、最多 12 本）。"""
+        path = str(path)
+        self.recent = [p for p in self.recent if p != path]
+        self.recent.insert(0, path)
+        del self.recent[12:]
 
     def set_progress(self, chapter: int, fraction: float) -> None:
         if not self.last_book:

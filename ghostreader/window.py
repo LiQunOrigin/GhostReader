@@ -240,6 +240,8 @@ class MainWindow(QWidget):
 
         self.title_bar = TitleBar(self)
         self.title_bar.tocClicked.connect(self.toggle_toc)
+        self.title_bar.openClicked.connect(self.choose_book)
+        self.title_bar.titleClicked.connect(self.show_recent_menu)
         self.title_bar.settingsClicked.connect(self.toggle_settings)
         self.title_bar.ghostClicked.connect(self.toggle_ghost)
         self.title_bar.pinClicked.connect(self.toggle_on_top)
@@ -579,6 +581,26 @@ class MainWindow(QWidget):
         if path:
             self.open_book(path)
 
+    def show_recent_menu(self):
+        """点书名弹出最近打开的书，切换书不用再走文件对话框。"""
+        menu = QMenu(self)
+        recents = [p for p in self.s.recent if Path(p).is_file()]
+        if recents:
+            for p in recents[:10]:
+                act = menu.addAction(Path(p).stem)
+                act.setData(p)
+                if p == self.s.last_book:
+                    act.setCheckable(True)
+                    act.setChecked(True)
+        else:
+            empty = menu.addAction("（暂无最近打开的书）")
+            empty.setEnabled(False)
+        menu.addSeparator()
+        menu.addAction(f"打开文件…  {hotkey_labels()['open']}", self.choose_book)
+        chosen = menu.exec(QCursor.pos())
+        if chosen is not None and chosen.data():
+            self.open_book(chosen.data())
+
     def open_book(self, path: str, silent: bool = False):
         try:
             book = documents.open_document(path)
@@ -589,6 +611,7 @@ class MainWindow(QWidget):
         self.book = book
         self.reader.set_book(book)
         self.s.last_book = str(Path(path).resolve())
+        self.s.push_recent(self.s.last_book)
         self.title_bar.set_title(book.title, book.author)
         self.toc.set_book(book, 0)
         self._apply_all()

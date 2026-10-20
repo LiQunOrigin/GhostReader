@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import (
     QEasingCurve,
+    QEvent,
     QPoint,
     QPointF,
     QPropertyAnimation,
@@ -112,7 +113,8 @@ def ui_font(size: int = 12, weight: QFont.Weight = QFont.Weight.Normal) -> QFont
 
 # ------------------------------------------------------------------ 矢量图标
 
-_ICONS = ("menu", "pin", "sliders", "ghost", "close", "min", "plus", "minus", "chevron", "book", "search", "eye")
+_ICONS = ("menu", "pin", "sliders", "ghost", "close", "min", "plus", "minus",
+          "chevron", "book", "search", "eye", "folder")
 
 
 def paint_icon(p: QPainter, name: str, r: QRectF, color: QColor, width: float = 1.5) -> None:
@@ -169,6 +171,16 @@ def paint_icon(p: QPainter, name: str, r: QRectF, color: QColor, width: float = 
                 QPointF(r.left() + w * 0.35, r.bottom() - h * 0.25),
             ]
         )
+    elif name == "folder":
+        path = QPainterPath()
+        path.moveTo(r.left() + w * 0.10, r.top() + h * 0.30)
+        path.lineTo(r.left() + w * 0.40, r.top() + h * 0.30)
+        path.lineTo(r.left() + w * 0.50, r.top() + h * 0.42)
+        path.lineTo(r.right() - w * 0.10, r.top() + h * 0.42)
+        path.lineTo(r.right() - w * 0.10, r.bottom() - h * 0.18)
+        path.lineTo(r.left() + w * 0.10, r.bottom() - h * 0.18)
+        path.closeSubpath()
+        p.drawPath(path)
     elif name == "book":
         p.drawRoundedRect(QRectF(r.left() + w * 0.12, r.top() + h * 0.12, w * 0.76, h * 0.76), 2, 2)
         p.drawLine(QPointF(cx, r.top() + h * 0.16), QPointF(cx, r.bottom() - h * 0.16))
@@ -228,7 +240,7 @@ class IconButton(QAbstractButton):
                 p.setPen(Qt.PenStyle.NoPen)
                 p.setBrush(self._pal.hover)
                 p.drawRoundedRect(r.adjusted(1, 1, -1, -1), 7, 7)
-        pad = r.width() * 0.3
+        pad = r.width() * 0.25
         paint_icon(p, self.icon_name, r.adjusted(pad, pad, -pad, -pad), self._color, 1.5)
         p.end()
 
@@ -496,6 +508,8 @@ class _Chip(QWidget):
 
 class TitleBar(QWidget):
     tocClicked = pyqtSignal()
+    openClicked = pyqtSignal()
+    titleClicked = pyqtSignal()
     settingsClicked = pyqtSignal()
     ghostClicked = pyqtSignal()
     pinClicked = pyqtSignal()
@@ -515,11 +529,16 @@ class TitleBar(QWidget):
         lay.setContentsMargins(8, 0, 8, 0)
         lay.setSpacing(2)
 
+        self.btn_open = IconButton("folder", "打开电子书 (⌘O)")
+        self.btn_open.clicked.connect(self.openClicked)
         self.btn_toc = IconButton("menu", "目录 (⌘⇧L)")
         self.btn_toc.clicked.connect(self.tocClicked)
         self.title = QLabel("")
         self.title.setFont(ui_font(11, QFont.Weight.Medium))
         self.title.setMinimumWidth(40)
+        self.title.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.title.setToolTip("点击切换最近打开的书")
+        self.title.installEventFilter(self)
         self.title.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.btn_pin = IconButton("pin", "置顶 (⌘⇧T)", 28)
         self.btn_pin.setCheckable(True)
@@ -535,6 +554,7 @@ class TitleBar(QWidget):
         self.btn_close.clicked.connect(self.closeClicked)
 
         lay.addWidget(self.btn_toc)
+        lay.addWidget(self.btn_open)
         lay.addSpacing(4)
         lay.addWidget(self.title, 1)
         lay.addWidget(self.btn_pin)
@@ -545,13 +565,21 @@ class TitleBar(QWidget):
         lay.addWidget(self.btn_close)
 
     def set_palette_colors(self, pal: Palette):
-        for b in (self.btn_toc, self.btn_pin, self.btn_ghost, self.btn_set, self.btn_min, self.btn_close):
+        for b in (self.btn_toc, self.btn_open, self.btn_pin, self.btn_ghost, self.btn_set,
+                  self.btn_min, self.btn_close):
             b.set_palette_colors(pal)
         self.title.setStyleSheet(f"color:{rgba(pal.muted,0.95)};")
 
+    def eventFilter(self, obj, event):
+        if obj is self.title and event.type() == QEvent.Type.MouseButtonPress:
+            self.titleClicked.emit()
+            return True
+        return super().eventFilter(obj, event)
+
     def set_ghost_mode(self, on: bool):
         """幽灵模式下只留幽灵按钮，其余控件隐藏；整条淡化，鼠标移上去恢复。"""
-        for item in (self.title, self.btn_pin, self.btn_set, self.btn_min, self.btn_close):
+        for item in (self.title, self.btn_open, self.btn_pin, self.btn_set,
+                     self.btn_min, self.btn_close):
             item.setVisible(not on)
         # 目录和退出按钮必须保留，否则幽灵模式下没法选章节、也没法退出
         self.btn_toc.setVisible(True)
@@ -649,6 +677,12 @@ class TocPanel(QWidget):
         self._label = label
         self._chapters: list[tuple[str, int]] = []
         self._ghost = False
+
+    def eventFilter(self, obj, event):
+        if obj is self.title and event.type() == QEvent.Type.MouseButtonPress:
+            self.titleClicked.emit()
+            return True
+        return super().eventFilter(obj, event)
 
     def set_ghost_mode(self, on: bool):
         """幽灵模式下目录面板也透明，只留文字和细边框。"""
