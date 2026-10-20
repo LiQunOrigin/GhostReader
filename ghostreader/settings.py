@@ -58,7 +58,7 @@ class Settings:
 
     # 隐身
     ghost_text: str = "light"   # 已废弃，保留仅为兼容旧配置
-    ghost_backing: float = 0.06  # 幽灵模式给文字垫的底色浓度（0 = 完全透明）
+    ghost_backing: float = 0.03  # 幽灵模式给文字垫的底色浓度（0 = 完全透明）
     idle_fade: bool = True
     idle_opacity: float = 0.42
     idle_delay_ms: int = 0   # 0 = 鼠标离开立即淡化
