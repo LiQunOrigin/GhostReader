@@ -39,6 +39,8 @@ echo "==> 补文档类型声明并重签名"
 "$PY" "$ROOT/tools/patch_bundle.py" "$WORK/dist/GhostReader.app"
 
 echo "==> 安装到 $APP"
+# 同时清掉开发模式（python main.py）的残留，否则它会占着单实例锁
+pkill -f "GhostReader/main.py" 2>/dev/null || true
 pkill -f "GhostReader.app/Contents/MacOS/GhostReader" 2>/dev/null || true
 sleep 1
 mkdir -p "$(dirname "$APP")"
