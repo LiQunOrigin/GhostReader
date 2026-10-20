@@ -23,6 +23,7 @@ from PyQt6.QtGui import (
     QIcon,
     QPainter,
     QPainterPath,
+    QPalette,
     QPen,
     QPixmap,
 )
@@ -688,16 +689,24 @@ class TocPanel(QWidget):
     def _on_pick(self, item: QListWidgetItem):
         self.chapterPicked.emit(int(item.data(Qt.ItemDataRole.UserRole)))
 
+    def paintEvent(self, _e):
+        """自绘面板底：QSS 的类选择器背景在这套无边框透明窗口里不可靠。"""
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        pal = self._pal or Palette(Settings())
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        if self._ghost:
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(QPen(qca(pal.fg, 0.16), 1))
+        else:
+            p.setBrush(pal.panel)
+            p.setPen(QPen(qca(pal.fg, 0.10), 1))
+        p.drawRoundedRect(r, 12, 12)
+        p.end()
+
     def apply_palette(self, pal: Palette):
         self._pal = pal
-        bg = "transparent" if self._ghost else rgba(pal.panel, 1.0)
-        border = rgba(pal.fg, 0.16 if self._ghost else 0.10)
-        self.setStyleSheet(
-            f"""
-            TocPanel {{ background: {bg}; border-radius: 12px;
-                        border: 1px solid {border}; }}
-            """
-        )
+        self.setStyleSheet("")
         self._label.setStyleSheet(f"color:{rgba(pal.muted,1)}; letter-spacing:1px;")
         self.count.setStyleSheet(f"color:{rgba(pal.faint,1)};")
         self.search.setStyleSheet(
@@ -758,10 +767,15 @@ class SettingsPanel(QWidget):
         scroll.viewport().setAutoFillBackground(False)
         inner = QWidget()
         inner.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        # QScrollArea.setWidget() 会把内容控件设成 autoFillBackground=True，
+        # 用系统默认灰盖住面板底色，必须显式关掉
+        inner.setAutoFillBackground(False)
         self.body = QVBoxLayout(inner)
         self.body.setContentsMargins(0, 0, 6, 14)
         self.body.setSpacing(12)
         scroll.setWidget(inner)
+        self._scroll = scroll
+        self._inner = inner
         scroll.setMinimumHeight(90)
         scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         outer.addWidget(scroll, 1)
@@ -967,12 +981,21 @@ class SettingsPanel(QWidget):
         self.through.setChecked(s.click_through)
         self.guard.setChecked(s.capture_guard)
 
+    def paintEvent(self, _e):
+        """自绘面板底，颜色完全由 Palette 决定。"""
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        pal = self._pal or Palette(Settings())
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        p.setBrush(pal.panel)
+        p.setPen(QPen(qca(pal.fg, 0.10), 1))
+        p.drawRoundedRect(r, 12, 12)
+        p.end()
+
     def apply_palette(self, pal: Palette):
         self._pal = pal
         self.setStyleSheet(
             f"""
-            SettingsPanel {{ background: {rgba(pal.panel, 1.0)}; border-radius: 12px;
-                             border: 1px solid {rgba(pal.fg, 0.10)}; }}
             QLabel {{ color: {rgba(pal.muted, 1)}; }}
             QScrollArea {{ background: transparent; border: none; }}
             QComboBox {{
@@ -999,6 +1022,14 @@ class SettingsPanel(QWidget):
             child.apply_palette(pal)
         for child in self.findChildren(Divider):
             child.apply_palette(pal)
+        # QScrollArea 的 viewport 和内容控件默认会用自己的系统灰填充，
+        # 把面板底色整个盖住。统一刷成面板色，比追求透明可靠得多。
+        for target in (self._scroll.viewport(), self._inner):
+            target.setAutoFillBackground(True)
+            tp = target.palette()
+            tp.setColor(QPalette.ColorRole.Window, pal.panel)
+            tp.setColor(QPalette.ColorRole.Base, pal.panel)
+            target.setPalette(tp)
         self.themes.apply_palette(pal)
         self.hint.setStyleSheet(f"color:{rgba(pal.faint,1)};")
         self.reset.apply_palette(pal)
