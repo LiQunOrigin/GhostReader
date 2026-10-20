@@ -8,10 +8,22 @@ from __future__ import annotations
 
 import re
 
-from PyQt6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import (
+    QEasingCurve,
+    QPoint,
+    QPointF,
+    QPropertyAnimation,
+    QRectF,
+    Qt,
+    QTimer,
+    QUrl,
+    pyqtSignal,
+)
 from PyQt6.QtGui import (
     QColor,
+    QPainter,
     QPalette,
+    QLinearGradient,
     QFont,
     QImage,
     QPalette,
@@ -156,23 +168,47 @@ class ReaderView(QTextBrowser):
             self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
     def _apply_viewport_backing(self) -> None:
-        """幽灵模式给正文视口垫一层极淡的纸色。
+        """刷新幽灵模式的文字底衬。
 
         文字直接画在透明表面上时，抗锯齿只能拿白色当过渡色，在深色桌面上
-        会形成一圈白边（看起来像描边）。垫一层几乎看不见的底色后，过渡色
-        变成纸色，边缘就自然了。浓度可调，设为 0 即完全透明。
+        会形成一圈白边（看起来像描边）。垫一层底色能解决，但矩形底色本身
+        会露出生硬的边（像多了一个框），所以这里改成径向渐变、四周淡出。
         """
-        vp = self.viewport()
-        if not self.ghost_mode:
-            vp.setAutoFillBackground(False)
-            return
-        c = QColor(self.s.bg_color)
-        c.setAlphaF(float(self.s.ghost_backing))
-        vp.setAutoFillBackground(True)
-        pal = vp.palette()
-        pal.setColor(QPalette.ColorRole.Base, c)
-        pal.setColor(QPalette.ColorRole.Window, c)
-        vp.setPalette(pal)
+        self.viewport().setAutoFillBackground(False)
+        self.viewport().update()
+
+    def paintEvent(self, event):
+        # 先在视口上铺一层中心实、四周淡的纸色，再交给 QTextBrowser 画正文。
+        # 底衬必须画在视口这一层：画在窗口层会被子控件盖住，抗锯齿照样按白色算。
+        if self.ghost_mode and float(self.s.ghost_backing) > 0 and not self.placeholder:
+            vp = self.viewport()
+            w, h = vp.width(), vp.height()
+            if w > 40 and h > 40:
+                p = QPainter(vp)
+                p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+                c = QColor(self.s.bg_color)
+                a = int(255 * float(self.s.ghost_backing))
+                # 1) 铺满整块
+                p.fillRect(vp.rect(), QColor(c.red(), c.green(), c.blue(), a))
+                # 2) 四条边用 DestinationOut 擦成渐隐，避免出现生硬的矩形边
+                feather = min(120.0, min(w, h) * 0.16)
+                p.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut)
+                clear = QColor(0, 0, 0, 255)
+                keep = QColor(0, 0, 0, 0)
+
+                def fade(x1, y1, x2, y2, rect):
+                    g = QLinearGradient(x1, y1, x2, y2)
+                    g.setColorAt(0.0, clear)
+                    g.setColorAt(1.0, keep)
+                    p.fillRect(rect, g)
+
+                fade(0, 0, 0, feather, QRectF(0, 0, w, feather))
+                fade(0, h, 0, h - feather, QRectF(0, h - feather, w, feather))
+                fade(0, 0, feather, 0, QRectF(0, 0, feather, h))
+                fade(w, 0, w - feather, 0, QRectF(w - feather, 0, feather, h))
+                p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+                p.end()
+        super().paintEvent(event)
 
     def set_ghost_mode(self, on: bool) -> None:
         """幽灵模式背景全透明，文字改用独立配色，保证在任何桌面上都看得清。"""
