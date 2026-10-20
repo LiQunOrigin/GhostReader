@@ -182,11 +182,14 @@ class ReaderView(QTextBrowser):
         vp = self.viewport()
         pal = vp.palette()
         if self.ghost_mode:
-            # 幽灵模式：视口本身全透明，底色由 paintEvent 的羽化底衬负责
-            clear = QColor(0, 0, 0, 0)
-            pal.setColor(QPalette.ColorRole.Base, clear)
-            pal.setColor(QPalette.ColorRole.Window, clear)
-            vp.setAutoFillBackground(False)
+            # 幽灵模式：视口底色就是那层淡纸色。
+            # 用 palette 而不是 paintEvent 自绘——QTextEdit 内部会重绘背景，
+            # 自绘的那层会被盖掉，只剩中间一块（正是之前那条"分界线"）。
+            backing = QColor(self.s.bg_color)
+            backing.setAlphaF(float(self.s.ghost_backing))
+            pal.setColor(QPalette.ColorRole.Base, backing)
+            pal.setColor(QPalette.ColorRole.Window, backing)
+            vp.setAutoFillBackground(True)
         else:
             # 普通模式：用纸色作视口底，给字形抗锯齿一个正确参照色
             pal.setColor(QPalette.ColorRole.Base, QColor(self.s.bg_color))
@@ -198,39 +201,6 @@ class ReaderView(QTextBrowser):
     def paintEvent(self, event):
         # 先在视口上铺一层中心实、四周淡的纸色，再交给 QTextBrowser 画正文。
         # 底衬必须画在视口这一层：画在窗口层会被子控件盖住，抗锯齿照样按白色算。
-        if self.ghost_mode and float(self.s.ghost_backing) > 0 and not self.placeholder:
-            vp = self.viewport()
-            w, h = vp.width(), vp.height()
-            if w > 40 and h > 40:
-                p = QPainter(vp)
-                p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-                # 幽灵模式下正文铺满整个窗口，底衬要按窗口圆角裁剪，
-                # 否则四角会露出直角的底色
-                clip = QPainterPath()
-                clip.addRoundedRect(QRectF(0, 0, w, h), 16, 16)
-                p.setClipPath(clip)
-                c = QColor(self.s.bg_color)
-                a = int(255 * float(self.s.ghost_backing))
-                # 1) 铺满整块
-                p.fillRect(vp.rect(), QColor(c.red(), c.green(), c.blue(), a))
-                # 2) 四条边用 DestinationOut 擦成渐隐，避免出现生硬的矩形边
-                feather = min(220.0, min(w, h) * 0.30)
-                p.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut)
-                clear = QColor(0, 0, 0, 255)
-                keep = QColor(0, 0, 0, 0)
-
-                def fade(x1, y1, x2, y2, rect):
-                    g = QLinearGradient(x1, y1, x2, y2)
-                    g.setColorAt(0.0, clear)
-                    g.setColorAt(1.0, keep)
-                    p.fillRect(rect, g)
-
-                fade(0, 0, 0, feather, QRectF(0, 0, w, feather))
-                fade(0, h, 0, h - feather, QRectF(0, h - feather, w, feather))
-                fade(0, 0, feather, 0, QRectF(0, 0, feather, h))
-                fade(w, 0, w - feather, 0, QRectF(w - feather, 0, feather, h))
-                p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-                p.end()
         super().paintEvent(event)
 
     def set_ghost_mode(self, on: bool) -> None:
