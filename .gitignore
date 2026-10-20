@@ -1,0 +1,20 @@
+# 虚拟环境（体积很大，不入库）
+.venv/
+venv/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# PyInstaller 构建产物
+build/
+dist/
+*.spec
+
+# 系统与日志
+.DS_Store
+*.log
+
+# 本地配置
+*.local.json
