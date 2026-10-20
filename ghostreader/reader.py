@@ -166,11 +166,31 @@ class ReaderView(QTextBrowser):
         self._restyle_selection()
         # setHtml 会把视口 palette 重置回不透明 Base，这里再压一次
         self._apply_viewport_backing()
+        self._apply_text_outline()
         # 翻页模式不需要滚动条，留着反而会占宽度、挡住右边一列字
         if self.s.page_mode == "page":
             self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         else:
             self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+    def _apply_text_outline(self) -> None:
+        """幽灵模式给文字加一圈极细的描边。
+
+        透明背景上没有底色可参考，字形抗锯齿只能混白，看起来就是"描边+变粗"。
+        与其垫一层会被看成"框"的底色，不如直接给字加描边：对比度够、又没有边界。
+        """
+        from PyQt6.QtGui import QPen, QTextCharFormat, QTextCursor
+
+        cursor = QTextCursor(self.document())
+        cursor.select(QTextCursor.SelectionType.Document)
+        fmt = QTextCharFormat()
+        if self.ghost_mode and self.s.ghost_outline:
+            pen = QPen(QColor(0, 0, 0, 80), 0.6)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            fmt.setTextOutline(pen)
+        else:
+            fmt.setTextOutline(QPen(Qt.PenStyle.NoPen))
+        cursor.mergeCharFormat(fmt)
 
     def _apply_viewport_backing(self) -> None:
         """确保正文视口本身是透明的。

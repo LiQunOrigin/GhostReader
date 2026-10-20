@@ -1023,6 +1023,12 @@ class SettingsPanel(QWidget):
         self.text_colors.picked.connect(lambda c: self._emit("text_color"))
         self.body.addWidget(self.text_colors)
 
+        self.ghost_outline = SwitchRow(
+            "幽灵模式文字描边", s.ghost_outline, "透明背景上靠描边保证可读，不会形成边框"
+        )
+        self.ghost_outline.toggledByUser.connect(lambda v: self._emit("ghost_outline"))
+        self.body.addWidget(self.ghost_outline)
+
         self.ghost_backing = SliderRow(
             "幽灵模式底衬", 0, 40, int(s.ghost_backing * 100), "%"
         )
@@ -1134,6 +1140,8 @@ class SettingsPanel(QWidget):
             s.page_mode = self.page_mode.currentData()
         elif key == "text_color":
             s.text_color = self.text_colors.current
+        elif key == "ghost_outline":
+            s.ghost_outline = self.ghost_outline.isChecked()
         elif key == "ghost_backing":
             s.ghost_backing = self.ghost_backing.value() / 100.0
         elif key == "text_alpha":
@@ -1169,6 +1177,7 @@ class SettingsPanel(QWidget):
         self.line_height.set_value(s.line_height)
         self.text_alpha.set_value(int(s.text_alpha * 100))
         self.ghost_backing.set_value(int(s.ghost_backing * 100))
+        self.ghost_outline.setChecked(s.ghost_outline)
         self.text_colors.set_color(s.text_color)
         pm = self.page_mode.findData(s.page_mode)
         self.page_mode.setCurrentIndex(pm if pm >= 0 else 0)

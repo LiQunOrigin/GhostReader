@@ -758,8 +758,9 @@ class MainWindow(QWidget):
             self._layout_panels()
         elif key == "page_mode":
             pass
-        elif key == "ghost_backing":
+        elif key in ("ghost_backing", "ghost_outline"):
             self.reader._apply_viewport_backing()
+            self.reader._apply_text_outline()
         elif key == "text_alpha":
             # 只重排正文，不用重建整个面板
             self.reader.apply_settings()
