@@ -632,7 +632,7 @@ class _Chip(QWidget):
 class DragHandle(QWidget):
     """幽灵模式下的拖动把手：按住即可移动窗口（标题栏此时是隐藏的）。"""
 
-    def __init__(self, pal: Palette, parent=None):
+    def __init__(self, pal: Palette | None = None, parent=None):
         super().__init__(parent)
         self._pal = pal
         self.setFixedSize(44, 26)
@@ -655,7 +655,10 @@ class DragHandle(QWidget):
     def paintEvent(self, _e):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        color = qca(self._pal.fg, 0.55 if self.underMouse() else 0.30)
+        if self._pal is None:
+            p.end()
+            return
+        color = qca(self._pal.fg, 0.75 if self.underMouse() else 0.42)
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(color)
         cx, cy = self.width() / 2, self.height() / 2
@@ -688,6 +691,7 @@ class TitleBar(QWidget):
         lay.setContentsMargins(8, 0, 8, 0)
         lay.setSpacing(2)
 
+        self.drag = DragHandle(None)
         self.btn_open = IconButton("folder", "打开电子书 (⌘O)")
         self.btn_open.clicked.connect(self.openClicked)
         self.btn_toc = IconButton("menu", "目录 (⌘⇧L)")
@@ -714,6 +718,7 @@ class TitleBar(QWidget):
 
         lay.addWidget(self.btn_toc)
         lay.addWidget(self.btn_open)
+        lay.addWidget(self.drag)
         lay.addSpacing(4)
         lay.addWidget(self.title, 1)
         lay.addWidget(self.btn_pin)
