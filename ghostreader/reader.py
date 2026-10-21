@@ -6,6 +6,8 @@ font-size 等），因此改字号只需要换一份样式表并重排当前章�
 
 from __future__ import annotations
 
+import time
+
 import re
 
 from PyQt6.QtCore import (
@@ -55,6 +57,7 @@ class ReaderView(QTextBrowser):
         self._anim: QPropertyAnimation | None = None
         self._pending_fraction: float | None = None
         self._wheel_accum = 0
+        self._last_page_at = 0.0
         self._press_pos: QPoint | None = None
         self._restore_timer = QTimer(self)
         self._restore_timer.setSingleShot(True)
@@ -468,9 +471,12 @@ class ReaderView(QTextBrowser):
             if dy == 0:
                 dy = event.pixelDelta().y() * 6
             self._wheel_accum += dy
-            if abs(self._wheel_accum) >= 40:
+            # 触摸板的惯性滚动会连续发 wheel，用时间闸门保证"滚一次只翻一页"
+            now = time.monotonic()
+            if abs(self._wheel_accum) >= 40 and now - self._last_page_at > 0.14:
                 self.page(1 if self._wheel_accum < 0 else -1)
                 self._wheel_accum = 0
+                self._last_page_at = now
             event.accept()
             return
         super().wheelEvent(event)

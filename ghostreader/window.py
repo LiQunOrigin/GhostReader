@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -663,6 +664,10 @@ class MainWindow(QWidget):
         self._apply_all()
         idx, frac = self.s.get_progress()
         self.reader.goto_chapter(idx, frac, keep_focus=True)
+        self._char_counts = [
+            len(re.sub(r"<[^>]+>", "", c.html)) for c in book.chapters
+        ]
+        self._total_chars = max(1, sum(self._char_counts))
         self._update_status()
         if old:
             epub.cleanup(old)
@@ -722,7 +727,13 @@ class MainWindow(QWidget):
         total = len(self.book.chapters)
         idx = self.reader.chapter_index
         frac = self.reader.fraction()
-        overall = (idx + frac) / max(1, total)
+        # 按字数加权：长章节占的进度更多，比"章节等分"更接近真实页数进度
+        counts = getattr(self, "_char_counts", None)
+        if counts and getattr(self, "_total_chars", 0):
+            done = sum(counts[:idx]) + counts[idx] * frac
+            overall = min(1.0, done / self._total_chars)
+        else:
+            overall = (idx + frac) / max(1, total)
         name = ch.title if ch else ""
         if self.s.page_mode == "page":
             cur, pages = self.reader.page_info()
