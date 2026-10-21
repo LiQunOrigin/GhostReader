@@ -275,6 +275,9 @@ class MainWindow(QWidget):
             lambda: self.goto_chapter(self.reader.chapter_index + 1, quiet=True)
         )
         self.reader.reachedStart.connect(self._goto_previous_chapter)
+        # 视口与 reader 都装上事件过滤器，确保滚轮一定被接管
+        self.reader.viewport().installEventFilter(self)
+        self.reader.installEventFilter(self)
         self.reader.scrollFraction.connect(self._on_scroll)
         root.addWidget(self.reader, 1)
 
@@ -627,6 +630,15 @@ class MainWindow(QWidget):
         )
         if path:
             self.open_book(path)
+
+    def eventFilter(self, obj, event):
+        # 翻页模式下，任何落到正文区的滚轮都只翻页，绝不原生滚动
+        if event.type() == QEvent.Type.Wheel and getattr(self, "s", None):
+            if self.s.page_mode == "page" and isinstance(obj, QWidget):
+                if obj is self.reader or self.reader.isAncestorOf(obj):
+                    self.reader.wheelEvent(event)
+                    return True
+        return super().eventFilter(obj, event)
 
     def show_recent_menu(self):
         """点书名弹出最近打开的书，切换书不用再走文件对话框。"""

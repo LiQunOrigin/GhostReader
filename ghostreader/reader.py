@@ -34,7 +34,7 @@ from PyQt6.QtGui import (
     QTextDocument,
     QTextImageFormat,
 )
-from PyQt6.QtWidgets import QTextBrowser
+from PyQt6.QtWidgets import QGraphicsOpacityEffect, QTextBrowser
 
 from .epub import Book, Chapter
 from .settings import Settings
@@ -440,6 +440,25 @@ class ReaderView(QTextBrowser):
         rect = self.cursorRect(cursor)
         target = bar.value() + rect.top()
         bar.setValue(max(0, min(bar.maximum(), target)))
+        self._flash_page()
+
+    def _flash_page(self) -> None:
+        """翻页后做一次很短的淡入，让"换页"有明确的视觉切换，而不是生硬跳变。"""
+        vp = self.viewport()
+        eff = QGraphicsOpacityEffect(vp)
+        vp.setGraphicsEffect(eff)
+        anim = QPropertyAnimation(eff, b"opacity", self)
+        anim.setDuration(140)
+        anim.setStartValue(0.25)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        def done():
+            vp.setGraphicsEffect(None)
+
+        anim.finished.connect(done)
+        self._page_anim = anim
+        anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
 
     def jump(self, where: str) -> None:
         bar = self.verticalScrollBar()
@@ -463,20 +482,8 @@ class ReaderView(QTextBrowser):
         self.on_resize()
 
     def wheelEvent(self, event):
-        if self.s.page_mode == "page" and not (
-            event.modifiers() & Qt.KeyboardModifier.ControlModifier
-        ):
-            # 鼠标滚轮给 angleDelta，触摸板给 pixelDelta（有时 angleDelta 为 0）
-            dy = event.angleDelta().y()
-            if dy == 0:
-                dy = event.pixelDelta().y() * 6
-            self._wheel_accum += dy
-            # 触摸板的惯性滚动会连续发 wheel，用时间闸门保证"滚一次只翻一页"
-            now = time.monotonic()
-            if abs(self._wheel_accum) >= 40 and now - self._last_page_at > 0.14:
-                self.page(1 if self._wheel_accum < 0 else -1)
-                self._wheel_accum = 0
-                self._last_page_at = now
+        # 翻页模式：滚轮完全失效（不滚动、也不翻页），翻页只走点击/按键
+        if self.s.page_mode == "page":
             event.accept()
             return
         super().wheelEvent(event)
