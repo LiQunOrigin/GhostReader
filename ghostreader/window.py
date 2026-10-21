@@ -701,8 +701,12 @@ class MainWindow(QWidget):
             self.toggle_toc()
 
     def _on_scroll(self, _frac: float):
-        # 滚动会连续触发，节流后再刷新状态栏，避免每帧重绘。
-        # 初始化阶段（定时器还没建）会先收到滚动信号，这里必须容错。
+        # 翻页模式：页码与进度条要跟手，直接刷新
+        if getattr(self, "s", None) is not None and self.s.page_mode == "page":
+            if getattr(self, "_status_timer", None) is not None:
+                self._update_status()
+            return
+        # 连续滚动：节流后再刷新，避免每帧重绘
         timer = getattr(self, "_status_timer", None)
         if timer is not None and not timer.isActive():
             timer.start()

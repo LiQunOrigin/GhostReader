@@ -463,7 +463,11 @@ class ReaderView(QTextBrowser):
         if self.s.page_mode == "page" and not (
             event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
-            self._wheel_accum += event.angleDelta().y()
+            # 鼠标滚轮给 angleDelta，触摸板给 pixelDelta（有时 angleDelta 为 0）
+            dy = event.angleDelta().y()
+            if dy == 0:
+                dy = event.pixelDelta().y() * 6
+            self._wheel_accum += dy
             if abs(self._wheel_accum) >= 40:
                 self.page(1 if self._wheel_accum < 0 else -1)
                 self._wheel_accum = 0
