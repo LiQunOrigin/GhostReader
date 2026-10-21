@@ -720,9 +720,14 @@ class MainWindow(QWidget):
         frac = self.reader.fraction()
         overall = (idx + frac) / max(1, total)
         name = ch.title if ch else ""
-        self.status.set_state(name, f"{idx + 1}/{total} · {int(overall * 100)}%", overall)
+        if self.s.page_mode == "page":
+            cur, pages = self.reader.page_info()
+            right = f"{cur} / {pages}"
+        else:
+            right = f"{idx + 1}/{total} · {int(overall * 100)}%"
+        self.status.set_state(name, right, overall)
         if self._ghost:
-            self.setWindowTitle(f"{name} · {int(overall * 100)}%")
+            self.setWindowTitle(f"{name} · {right}")
 
     def _show_empty(self):
         labels = hotkey_labels()
@@ -1075,11 +1080,16 @@ class MainWindow(QWidget):
             if not self._close_panels():
                 self.toggle_visibility()
             return
-        if key == Qt.Key.Key_Left:
-            self.goto_chapter(self.reader.chapter_index - 1)
-            return
-        if key == Qt.Key.Key_Right:
-            self.goto_chapter(self.reader.chapter_index + 1)
+        if key in (Qt.Key.Key_Left, Qt.Key.Key_Right):
+            step = -1 if key == Qt.Key.Key_Left else 1
+            if self.s.page_mode == "page":
+                # 整页翻页模式下左右键翻页，翻章用 ⌘← / ⌘→
+                if e.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                    self.goto_chapter(self.reader.chapter_index + step)
+                else:
+                    self.reader.page(step)
+            else:
+                self.goto_chapter(self.reader.chapter_index + step)
             return
         super().keyPressEvent(e)
 

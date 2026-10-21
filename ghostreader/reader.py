@@ -403,6 +403,14 @@ class ReaderView(QTextBrowser):
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._anim.start()
 
+    def page_info(self) -> tuple[int, int]:
+        """返回 (当前页, 总页数)。按视口高度估算，整页翻页时与实际页基本一致。"""
+        bar = self.verticalScrollBar()
+        h = max(1, self.viewport().height())
+        total = max(1, int(round((bar.maximum() + h) / h)))
+        cur = max(1, min(total, int(round(bar.value() / h)) + 1))
+        return cur, total
+
     def page(self, direction: int) -> None:
         """翻一页。整页模式下按「行」对齐，不会把一行切成两半。"""
         bar = self.verticalScrollBar()
@@ -496,8 +504,17 @@ class ReaderView(QTextBrowser):
             self.page(-1)
             return
         if key in (Qt.Key.Key_Down, Qt.Key.Key_Up):
-            self.scroll_by(int(self.s.font_size * 2.4) * (1 if key == Qt.Key.Key_Down else -1))
+            # 整页翻页模式下上下键也翻页，不再有"滑动"这种中间状态
+            if self.s.page_mode == "page":
+                self.page(1 if key == Qt.Key.Key_Down else -1)
+            else:
+                self.scroll_by(int(self.s.font_size * 2.4) * (1 if key == Qt.Key.Key_Down else -1))
             return
+        if key in (Qt.Key.Key_Left, Qt.Key.Key_Right):
+            # 左右键同样翻页（翻章用 ⌘← / ⌘→，由主窗口处理）
+            if self.s.page_mode == "page":
+                self.page(1 if key == Qt.Key.Key_Right else -1)
+                return
         if key == Qt.Key.Key_Home:
             self.jump("top")
             return
